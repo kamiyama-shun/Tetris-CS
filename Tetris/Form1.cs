@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Windows.Input;
 
 namespace Tetris
 {
@@ -22,7 +23,7 @@ namespace Tetris
         int[,] screen = new int[Const.Width, Const.Height];
 
         // ブロック出現位置
-        readonly Point mStartPos = new Point(4, 0);
+        readonly Point mStartPos = new Point(4, 1);
 
         Block currBlock;
         Point pos;
@@ -102,9 +103,21 @@ namespace Tetris
             int nextRot = rot;                          // 次の回転
 
             // ゆっくりブロックを落下させるための考慮（10回に1度だけ落ちる）
-            if ((fallCnt = (fallCnt + 1) % 10) == 0)
+            if ((fallCnt = (fallCnt + 1) % 5) == 0)
             {
-                pos.Y += 1;
+                nextPos.Y += 1;
+            }
+            else if (Keyboard.IsKeyDown(Key.Right))
+            {
+                nextPos.X += 1;
+            }
+            else if (Keyboard.IsKeyDown(Key.Left))
+            {
+                nextPos.X -= 1;
+            }
+            else if (Keyboard.IsKeyDown(Key.Down))
+            {
+                nextPos.Y += 1;
             }
 
             // 現在のブロック位置を取得
@@ -113,32 +126,54 @@ namespace Tetris
             // 現在のブロック位置を黒で初期化
             PutBlock(currLoc, 0);
 
+            // 次のブロック位置を取得
+            Point[] nextLoc = GetLoc(currBlock, nextPos, nextRot);
+
             // 次の位置にブロックが配置不可か判定
-            if (IsCollision() == true)
+            if (IsCollision(nextLoc) == true)
             {
+                // 次の位置に置けないので元の位置に置く
+                PutBlock(currLoc, currBlock.color);
+
+                PutStartBlock();
+
+                currLoc = GetLoc(currBlock, pos, rot);
+                if (IsCollision(currLoc))
+                {
+                    PutBlock(currLoc, currBlock.color);
+                    GameOver();
+                }
             }
             else
             {
+                // 次の位置に置く
+                PutBlock(nextLoc, currBlock.color);
 
-            }
-
-            for (int i = 0; i < currBlock.point.GetLength(1); ++i)
-            {
-                screen[pos.X + currBlock.point[rot, i].X, pos.Y + currBlock.point[rot, i].Y] = 0;
-            }
-
-
-            for (int i = 0; i < currBlock.point.GetLength(1); ++i)
-            {
-                screen[pos.X + currBlock.point[rot, i].X, pos.Y + currBlock.point[rot, i].Y] = currBlock.color;
+                // 座標位置の更新
+                pos = nextPos;
+                rot = nextRot;
             }
 
             Invalidate();
         }
 
-
-        private bool IsCollision()
+        /// <summary>
+        /// ブロックが画面外、もしくは他のブロックと干渉するか判定
+        /// </summary>
+        /// <param name="loc">ブロック座標</param>
+        /// <returns>干渉結果</returns>
+        private bool IsCollision(Point[] loc)
         {
+            int w = screen.GetLength(0);
+            int h = screen.GetLength(1);
+
+            for (int i = 0; i < loc.Length; ++i)
+            {
+                if (loc[i].X < 0 || w <= loc[i].X || loc[i].Y < 0 || h <= loc[i].Y || screen[loc[i].X, loc[i].Y] != 0)
+                {
+                    return true;
+                }
+            }
             return false;
         }
 
@@ -170,6 +205,27 @@ namespace Tetris
             {
                 screen[pt.X, pt.Y] = color;
             }
+        }
+
+        /// <summary>
+        /// ゲームオーバー
+        /// </summary>
+        private void GameOver()
+        {
+            // ブロックを赤で塗りつぶす
+            for (int i = 0; i < Const.Width; ++i)
+            {
+                for (int j = 0; j < Const.Height; ++j)
+                {
+                    if (screen[i, j] != 0)
+                    {
+                        screen[i, j] = 5;
+                    }
+                }
+            }
+
+            // タイマー停止
+            timer1.Enabled = false;
         }
     }
 }
