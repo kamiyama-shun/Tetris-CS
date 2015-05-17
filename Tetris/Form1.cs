@@ -101,33 +101,61 @@ namespace Tetris
         {
             Point nextPos = new Point(pos.X, pos.Y);    // 次の位置
             int nextRot = rot;                          // 次の回転
-
-            // ゆっくりブロックを落下させるための考慮（10回に1度だけ落ちる）
-            if ((fallCnt = (fallCnt + 1) % 5) == 0)
-            {
-                nextPos.Y += 1;
-            }
-            else if (Keyboard.IsKeyDown(Key.Right))
-            {
-                nextPos.X += 1;
-            }
-            else if (Keyboard.IsKeyDown(Key.Left))
-            {
-                nextPos.X -= 1;
-            }
-            else if (Keyboard.IsKeyDown(Key.Down))
-            {
-                nextPos.Y += 1;
-            }
+            Point[] nextLoc;    // 次のブロック位置
 
             // 現在のブロック位置を取得
-            Point[] currLoc = GetLoc(currBlock, pos, rot);
+            Point[] currLoc = GetBlockLocation(currBlock, pos, rot);
 
             // 現在のブロック位置を黒で初期化
             PutBlock(currLoc, 0);
 
+            // ゆっくりブロックを落下させるための考慮（10回に1度だけ落ちる）
+            if ((fallCnt = (fallCnt + 1) % 5) == 0)
+            {
+                // ブロック落下
+                nextPos.Y += 1;
+            }
+            else if (Keyboard.IsKeyDown(Key.Right))
+            {
+                // 右へブロックの座標を移動
+                nextPos.X += 1;
+                nextLoc = GetBlockLocation(currBlock, nextPos, nextRot);
+
+                // 壁もしくは他のブロックと干渉しているか判定
+                if (IsWallCollision(nextLoc) == true ||
+                    IsBlockCollision(nextLoc) == true )
+                {
+                    // 元にに戻す
+                    nextPos.X -= 1;
+                }
+            }
+            else if (Keyboard.IsKeyDown(Key.Left))
+            {
+                // 左へブロックの座標を移動
+                nextPos.X -= 1;
+                nextLoc = GetBlockLocation(currBlock, nextPos, nextRot);
+
+                // 壁もしくは他のブロックと干渉しているか判定
+                if (IsWallCollision(nextLoc) == true ||
+                    IsBlockCollision(nextLoc) == true )
+                {
+                    // 元にに戻す
+                    nextPos.X += 1;
+                }
+            }
+            else if (Keyboard.IsKeyDown(Key.Down))
+            {
+                // ブロック落下
+                nextPos.Y += 1;
+            }
+            else if (Keyboard.IsKeyDown(Key.Up))
+            {
+                // ブロックの回転 ※パターン数を超えないよう考慮
+                nextRot = (nextRot + 1) % currBlock.point.GetLength(0);
+            }
+
             // 次のブロック位置を取得
-            Point[] nextLoc = GetLoc(currBlock, nextPos, nextRot);
+            nextLoc = GetBlockLocation(currBlock, nextPos, nextRot);
 
             // 次の位置にブロックが配置不可か判定
             if (IsCollision(nextLoc) == true)
@@ -137,7 +165,7 @@ namespace Tetris
 
                 PutStartBlock();
 
-                currLoc = GetLoc(currBlock, pos, rot);
+                currLoc = GetBlockLocation(currBlock, pos, rot);
                 if (IsCollision(currLoc))
                 {
                     PutBlock(currLoc, currBlock.color);
@@ -154,22 +182,58 @@ namespace Tetris
                 rot = nextRot;
             }
 
+            // 再描画イベント
             Invalidate();
         }
 
         /// <summary>
-        /// ブロックが画面外、もしくは他のブロックと干渉するか判定
+        /// ブロックが床、もしくは他のブロックと干渉するか判定
         /// </summary>
         /// <param name="loc">ブロック座標</param>
         /// <returns>干渉結果</returns>
         private bool IsCollision(Point[] loc)
         {
-            int w = screen.GetLength(0);
             int h = screen.GetLength(1);
 
             for (int i = 0; i < loc.Length; ++i)
             {
-                if (loc[i].X < 0 || w <= loc[i].X || loc[i].Y < 0 || h <= loc[i].Y || screen[loc[i].X, loc[i].Y] != 0)
+                if (loc[i].Y < 0 || h <= loc[i].Y || screen[loc[i].X, loc[i].Y] != 0)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ブロックが壁（画面外）と衝突しているか判定
+        /// </summary>
+        /// <param name="loc">ブロック座標リスト</param>
+        /// <returns>衝突フラグ</returns>
+        private bool IsWallCollision(Point[] loc)
+        {
+            int w = screen.GetLength(0);
+
+            for (int i = 0; i < loc.Length; ++i)
+            {
+                if (loc[i].X < 0 || w <= loc[i].X)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// ブロックが他のブロックと衝突しているか判定
+        /// </summary>
+        /// <param name="loc">ブロック座標リスト</param>
+        /// <returns>衝突フラグ</returns>
+        private bool IsBlockCollision(Point[] loc)
+        {
+            for (int i = 0; i < loc.Length; ++i)
+            {
+                if (screen[loc[i].X, loc[i].Y] != 0)
                 {
                     return true;
                 }
@@ -180,11 +244,11 @@ namespace Tetris
         /// <summary>
         /// ブロックを画面に配置したときの位置を取得
         /// </summary>
-        /// <param name="block"></param>
-        /// <param name="pt"></param>
-        /// <param name="rot"></param>
-        /// <returns></returns>
-        private Point[] GetLoc(Block block, Point pt, int rot)
+        /// <param name="block">ブロック情報</param>
+        /// <param name="pt">XY座標</param>
+        /// <param name="rot">回転</param>
+        /// <returns>ブロック情報リスト</returns>
+        private Point[] GetBlockLocation(Block block, Point pt, int rot)
         {
             Point[] retLoc = new Point[block.point.GetLength(1)];
             for (int i = 0; i < retLoc.Length; ++i)
