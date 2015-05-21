@@ -28,6 +28,7 @@ namespace Tetris
         Block currBlock;
         Point pos;
         int rot;
+        bool rotStop = false;
 
         int fallCnt = 0;
 
@@ -110,7 +111,7 @@ namespace Tetris
             PutBlock(currLoc, 0);
 
             // ゆっくりブロックを落下させるための考慮（10回に1度だけ落ちる）
-            if ((fallCnt = (fallCnt + 1) % 5) == 0)
+            if ((fallCnt = (fallCnt + 1) % 10) == 0)
             {
                 // ブロック落下
                 nextPos.Y += 1;
@@ -151,8 +152,28 @@ namespace Tetris
             else if (Keyboard.IsKeyDown(Key.Up))
             {
                 // ブロックの回転 ※パターン数を超えないよう考慮
-                nextRot = (nextRot + 1) % currBlock.point.GetLength(0);
+                if (this.rotStop == false)
+                { 
+                    nextRot = (nextRot + 1) % currBlock.point.GetLength(0);
+
+                    nextLoc = GetBlockLocation(currBlock, nextPos, nextRot);
+                    int offsetX = inquireOverflowX(nextLoc);
+                    if (offsetX != 0)
+                    {
+                        nextPos.X += -offsetX;
+                    }
+                }
             }
+
+            if (Keyboard.IsKeyDown(Key.Up) == true)
+            {
+                this.rotStop = true;
+            }
+            else
+            {
+                this.rotStop = false;
+            }
+
 
             // 次のブロック位置を取得
             nextLoc = GetBlockLocation(currBlock, nextPos, nextRot);
@@ -163,11 +184,16 @@ namespace Tetris
                 // 次の位置に置けないので元の位置に置く
                 PutBlock(currLoc, currBlock.color);
 
+                // 1行揃ったブロックの削除
+                this.DeletedLine();
+
+                // 新規ブロックの投入
                 PutStartBlock();
 
                 currLoc = GetBlockLocation(currBlock, pos, rot);
                 if (IsCollision(currLoc))
                 {
+                    // ゲームオーバー
                     PutBlock(currLoc, currBlock.color);
                     GameOver();
                 }
@@ -259,6 +285,35 @@ namespace Tetris
         }
 
         /// <summary>
+        /// はみ出したX軸の範囲取得
+        /// </summary>
+        /// <param name="loc">ブロック座標リスト</param>
+        /// <returns></returns>
+        private int inquireOverflowX(Point[] loc)
+        {
+            int w = screen.GetLength(0);
+            int x = 0;
+
+            for (int i = 0; i < loc.Length; ++i)
+            {
+                // 画面外の座標か判定
+                if (loc[i].X < 0 || w <= loc[i].X)
+                {
+                    if (Math.Abs(x) < Math.Abs(loc[i].X))
+                    {
+                        x = loc[i].X;
+                    }
+                }
+            }
+
+            if (0 < x)
+            {
+                x = x - w + 1;
+            }
+            return x;
+        }
+
+        /// <summary>
         /// ブロックを配置
         /// </summary>
         /// <param name="points">ブロック座標</param>
@@ -268,6 +323,39 @@ namespace Tetris
             foreach (Point pt in points)
             {
                 screen[pt.X, pt.Y] = color;
+            }
+        }
+
+        /// <summary>
+        /// 1行揃ったブロックの削除
+        /// </summary>
+        private void DeletedLine()
+        {
+            bool delFlg;
+            for (int y = 0; y < Const.Height; ++y)
+            {
+                delFlg = true;
+
+                for (int x = 0; x < Const.Width; ++x)
+                {
+                    // ブロック無しか判定
+                    if (screen[x, y] == 0)
+                    {
+                        delFlg = false;
+                        break;
+                    }
+                }
+                // 1行揃っているか判定
+                if (delFlg == true)
+                {
+                    for (int yy = y; yy >= 1; --yy)
+                    {
+                        for (int x = 0; x < Const.Width; ++x)
+                        {
+                            screen[x, yy] = screen[x, yy - 1];
+                        }
+                    }
+                }
             }
         }
 
